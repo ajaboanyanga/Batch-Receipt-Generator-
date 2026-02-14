@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AJABOA NYANGA · Mobile Money Receipt</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        /* --- GLOBAL STYLES --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #e5e7eb;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            display: flex;
+            gap: 30px;
+            max-width: 1200px;
+            width: 100%;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Form panel (never printed) */
+        .controls {
+            background: #ffffff;
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+            flex: 1;
+            min-width: 320px;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            border: 1px solid #ccc;
+        }
+
+        .controls h2 { 
+            color: #1e1e2f; 
+            border-bottom: 3px solid #f9b81b; 
+            padding-bottom: 8px; 
+            margin-top: 0;
+        }
+
+        .controls label { font-weight: bold; display: block; margin: 15px 0 5px; }
+        .controls input, .controls textarea, .controls select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 12px;
+            border: 1px solid #aaa;
+            border-radius: 8px;
+        }
+
+        .item-row { display: flex; gap: 8px; }
+        .item-row .desc { flex: 3; }
+        .item-row .price { flex: 1; }
+
+        .controls button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 10px;
+        }
+        .add-btn { background: #eaeef2; }
+        .generate-btn { background: #f9b81b; width: 100%; font-size: 1.1rem; }
+        .print-btn { background: #00985b; color: white; width: 100%; }
+
+        /* --- RECEIPT STYLED FOR A4 PRINTING --- */
+        .receipt-preview {
+            flex: 0 0 auto;
+            background: #f0f0f0;
+            padding: 20px 10px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: center;
+        }
+
+        .receipt {
+            width: 380px;          /* typical thermal width, but scaled for A4 preview */
+            background: #ffffff;
+            color: #000000;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            text-transform: uppercase;
+            padding: 15px 12px;
+            border-radius: 4px;
+            box-shadow: 0 0 0 1px #ccc;
+            margin: 0 auto;
+            position: relative;      /* for border placement */
+        }
+
+        /* A4 PRINT OVERRIDES: receipt scales to fit within A4 with proper margins */
+        @media print {
+            body { background: white; padding: 0; margin: 0; }
+            .controls, .add-btn, .generate-btn, .print-btn, .receipt-preview {
+                display: none;
+            }
+            .receipt-preview {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                background: white;
+                padding: 0;
+                min-height: 100vh;
+            }
+            .receipt {
+                width: 80mm;            /* thermal width exactly 80mm for authenticity */
+                box-shadow: none;
+                border: none;
+                padding: 5mm 3mm;
+                margin: 0 auto;
+                page-break-after: avoid;
+                page-break-inside: avoid;
+                font-size: 10px;
+            }
+            body, .container {
+                display: block;
+                text-align: center;
+            }
+        }
+
+        /* --- AJABOA NYANGA CUSTOM BORDER & LOGO --- */
+        .receipt {
+            border: 2px solid #d4af37;  /* gold border for elegance */
+            outline: 1px solid #000;
+            outline-offset: 2px;
+            position: relative;
+        }
+
+        /* tiny text border running around the receipt */
+        .receipt::after {
+            content: " ★ AJABOA NYANGA ★ ONE FAMILY ★ AJABOA NYANGA ★ ONE FAMILY ★ ";
+            position: absolute;
+            bottom: -10px;
+            left: 0;
+            right: 0;
+            font-size: 6px;
+            letter-spacing: 1px;
+            color: #b8860b;
+            background: white;
+            white-space: nowrap;
+            overflow: hidden;
+            text-align: center;
+            border-top: 1px dashed #d4af37;
+            border-bottom: 1px dashed #d4af37;
+            padding: 2px 0;
+            width: 100%;
+            transform: translateY(100%);
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        /* logo area in header */
+        .logo-area {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+        .logo-icon {
+            font-size: 28px;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+        }
+        .logo-text {
+            font-family: 'Courier New', monospace;
+            font-weight: 900;
+            font-size: 18px;
+            letter-spacing: 2px;
+            background: linear-gradient(145deg, #b8860b, #d4af37);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 1px 1px 0 #00000020;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 900;
+            margin: 2px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        /* Receipt inner elements */
+        .header { text-align: center; margin-bottom: 8px; }
+        .header p { font-size: 11px; margin: 0; }
+
+        .mm-badge {
+            background: #111;
+            color: #f9b81b;
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 11px;
+            margin: 5px 0;
+        }
+
+        .divider { 
+            margin: 6px 0; 
+            letter-spacing: -1px; 
+            white-space: nowrap; 
+            overflow: hidden;
+            font-size: 13px;
+        }
+
+        .party-section {
+            display: flex;
+            justify-content: space-between;
+            background: #f3f3f3;
+            padding: 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin: 6px 0;
+        }
+
+        .item-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
+        .item-table th { text-align: left; border-bottom: 1px dashed #444; padding: 3px 0; }
+        .item-table td { padding: 3px 0; }
+        .text-right { text-align: right; }
+
+        .totals { margin-top: 8px; border-top: 1px dashed #000; padding-top: 6px; }
+        .total-row { display: flex; justify-content: space-between; font-size: 12px; }
+        .total-row.main { font-weight: 900; font-size: 16px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 5px 0; margin: 5px 0; }
+        .total-row.fee-row { color: #b7521a; }
+
+        .mobile-money-foot {
+            display: flex;
+            justify-content: space-between;
+            background: #eee;
+            padding: 5px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin: 8px 0;
+        }
+
+        #qrcode { margin: 10px auto; display: flex; justify-content: center; }
+        #qrcode img { width: 80px; height: 80px; }
+
+        .footer { text-align: center; margin-top: 8px; }
+        .footer h3 { font-size: 16px; margin: 6px 0; color: #00985b; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="controls">
+        <h2>📱 AJABOA NYANGA · MOMO</h2>
+        
+        <label>👤 PAYEE (MERCHANT)</label>
+        <input type="text" id="payeeName" value="JUA KALI HARDWARE" placeholder="Business name">
+        <input type="text" id="payeeContact" value="+256 712 345678" placeholder="Phone / email">
+        
+        <label>🧾 RECEIVER (TREASURER)</label>
+        <input type="text" id="receiverName" value="NAKATO TRADERS" placeholder="Treasurer name">
+        <input type="text" id="receiverContact" value="+256 701 234567" placeholder="Phone">
+
+        <div style="background:#f3f9ff; border-radius:12px; padding:12px; margin:15px 0;">
+            <label>💸 MOBILE MONEY</label>
+            <select id="mmProvider">
+                <option value="MTN MoMo">MTN Mobile Money</option>
+                <option value="Airtel Money">Airtel Money</option>
+            </select>
+            <input type="text" id="mmPhone" value="+256 772 123456" placeholder="Payer phone">
+            <input type="text" id="mmRef" value="MM8912345KLA" placeholder="Transaction ID">
+            <label>💰 Fee (UGX)</label>
+            <input type="number" id="transactionFee" value="500" placeholder="Fee" min="0" step="50">
+        </div>
+
+        <label>🛒 ITEMS</label>
+        <div id="itemInputs">
+            <div class="item-row">
+                <input type="text" class="desc" value="Nails 2'' box" placeholder="Item">
+                <input type="number" class="price" value="8500" placeholder="UGX">
+            </div>
+            <div class="item-row">
+                <input type="text" class="desc" value="Padlock heavy" placeholder="Item">
+                <input type="number" class="price" value="23500" placeholder="UGX">
+            </div>
+        </div>
+        
+        <button class="add-btn" onclick="addItem()">➕ Add Item</button>
+        <button class="generate-btn" onclick="generateReceipt()">⟳ UPDATE RECEIPT</button>
+        <button class="print-btn" onclick="window.print()">🖨️ PRINT ON A4</button>
+        <p style="font-size:0.8rem; text-align:center;">AJABOA NYANGA ★ ONE FAMILY</p>
+    </div>
+
+    <div class="receipt-preview">
+        <div class="receipt" id="printableReceipt">
+            <!-- LOGO at the very top -->
+            <div class="logo-area">
+                <span class="logo-icon">🦅✨</span>
+                <span class="logo-text">AJABOA NYANGA</span>
+                <span class="logo-icon">✨🦅</span>
+            </div>
+
+            <div class="header">
+                <h1 id="rt-payeeName">JUA KALI HARDWARE</h1>
+                <p id="rt-payeeContact">+256 712 345678</p>
+                <span class="mm-badge" id="rt-providerBadge">📱 MTN MoMo</span>
+            </div>
+            
+            <div class="divider">- - - - - - - - - - - - - - - - -</div>
+            <div style="text-align:center; font-weight:bold;">💵 MOBILE MONEY</div>
+            <div class="divider">- - - - - - - - - - - - - - - - -</div>
+
+            <div class="mobile-money-foot">
+                <span>📲 Txn: <span id="rt-mmRef">MM8912345KLA</span></span>
+                <span>📆 <span id="rt-date"></span></span>
+            </div>
+
+            <div class="party-section">
+                <div>
+                    <span style="font-weight:bold;">TREASURER</span><br>
+                    <span id="rt-receiverName">NAKATO TRADERS</span><br>
+                    <span id="rt-receiverContact">+256 701 234567</span>
+                </div>
+                <div style="text-align:right;">
+                    <span>📞 from:</span> <span id="rt-mmPhone">+256 772 123456</span>
+                </div>
+            </div>
+
+            <table class="item-table">
+                <thead>
+                    <tr><th>DESCRIPTION</th><th class="text-right">UGX</th></tr>
+                </thead>
+                <tbody id="rt-items"></tbody>
+            </table>
+
+            <div class="totals">
+                <div class="total-row">
+                    <span>SUB-TOTAL</span>
+                    <span id="rt-subtotal">32,000</span>
+                </div>
+                <div class="total-row fee-row">
+                    <span>MOMO FEE</span>
+                    <span id="rt-fee">500</span>
+                </div>
+                <div class="total-row main">
+                    <span>TOTAL</span>
+                    <span id="rt-total">32,500</span>
+                </div>
+            </div>
+
+            <div class="divider">- - - - - - - - - - - - - - - - -</div>
+            
+            <div class="footer">
+                <p>🔸 Auth: <span id="rt-authCode">MM/UG/2026</span></p>
+                <div id="qrcode"></div>
+                <h3>🇺🇬 AWADIFO AMBOO!</h3>
+            </div>
+
+            <!-- The border text is generated by ::after pseudo-element -->
+        </div>
+    </div>
+</div>
+
+<script>
+    function addItem() {
+        const container = document.getElementById('itemInputs');
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.innerHTML = `
+            <input type="text" class="desc" placeholder="Item">
+            <input type="number" class="price" placeholder="UGX">
+        `;
+        container.appendChild(row);
+    }
+
+    function formatUGX(amount) {
+        return amount.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    function generateReceipt() {
+        // Payee
+        const payeeName = document.getElementById('payeeName').value.trim() || "JUA KALI HARDWARE";
+        const payeeContact = document.getElementById('payeeContact').value.trim() || "+256 712 345678";
+        document.getElementById('rt-payeeName').innerText = payeeName;
+        document.getElementById('rt-payeeContact').innerText = payeeContact;
+
+        // Receiver
+        const receiverName = document.getElementById('receiverName').value.trim() || "NAKATO TRADERS";
+        const receiverContact = document.getElementById('receiverContact').value.trim() || "+256 701 234567";
+        document.getElementById('rt-receiverName').innerText = receiverName;
+        document.getElementById('rt-receiverContact').innerText = receiverContact;
+
+        // Mobile money details
+        const mmProvider = document.getElementById('mmProvider').value;
+        const mmPhone = document.getElementById('mmPhone').value.trim() || "+256 772 123456";
+        const mmRef = document.getElementById('mmRef').value.trim() || "MM8912345KLA";
+        document.getElementById('rt-providerBadge').innerHTML = `📱 ${mmProvider}`;
+        document.getElementById('rt-mmPhone').innerText = mmPhone;
+        document.getElementById('rt-mmRef').innerText = mmRef;
+
+        // Fee
+        let fee = parseFloat(document.getElementById('transactionFee').value);
+        if (isNaN(fee) || fee < 0) fee = 0;
+
+        // Date & auth
+        const today = new Date();
+        const dateStr = today.toLocaleDateString('en-UG', { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\//g,'/');
+        document.getElementById('rt-date').innerText = dateStr;
+        document.getElementById('rt-authCode').innerText = 'MM/' + Math.floor(Math.random()*9000+1000) + '/UG';
+
+        // Items
+        const descriptions = document.querySelectorAll('.desc');
+        const prices = document.querySelectorAll('.price');
+        const tableBody = document.getElementById('rt-items');
+        tableBody.innerHTML = '';
+        
+        let subtotal = 0;
+        for (let i = 0; i < descriptions.length; i++) {
+            const desc = descriptions[i].value.trim() || "Item";
+            const priceVal = parseFloat(prices[i].value);
+            const price = isNaN(priceVal) ? 0 : priceVal;
+            subtotal += price;
+            tableBody.innerHTML += `<tr><td>${desc.substring(0,22)}</td><td class="text-right">UGX ${formatUGX(price)}</td></tr>`;
+        }
+        if (descriptions.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">--- NO ITEMS ---</td></tr>';
+        }
+
+        // Update totals
+        document.getElementById('rt-subtotal').innerHTML = 'UGX ' + formatUGX(subtotal);
+        document.getElementById('rt-fee').innerHTML = 'UGX ' + formatUGX(fee);
+        const finalTotal = subtotal + fee;
+        document.getElementById('rt-total').innerHTML = 'UGX ' + formatUGX(finalTotal);
+
+        // QR code
+        document.getElementById("qrcode").innerHTML = ""; 
+        const qrContent = `AJABOA NYANGA\nMerchant: ${payeeName}\nTreasurer: ${receiverName}\nTxn: ${mmRef}\nTotal: UGX ${finalTotal}`;
+        new QRCode(document.getElementById("qrcode"), {
+            text: qrContent,
+            width: 80,
+            height: 80,
+            colorDark : "#000",
+            colorLight : "#fff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+    }
+
+    window.onload = generateReceipt;
+</script>
+
+</body>
+</html>
